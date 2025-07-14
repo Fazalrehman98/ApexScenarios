@@ -1,0 +1,36 @@
+trigger orderTrigger on Order__c (before delete) {
+    if(trigger.isBefore){
+        if(trigger.isDelete){
+            OrderTriggerHandler.preventDeletion(trigger.old);
+        }
+    }
+}
+
+
+///// Handler
+public class OrderTriggerHandler {
+    
+    public static void preventDeletion(List<Order__C> orders){
+        
+        Set<Id> orderIds = new set<Id>();
+        For(Order__C order: orders){
+            orderIds.add(order.id);
+        }
+        List<Order__c> orderList = [SELECT Id,Status__c,(SELECT Id,Name FROM Order_Approvals__r WHERE Status__c='Pending' LIMIT 1) FROM Order__c WHERE Id IN: orderIds];      
+        Map<Id, String> ordersWithErrors = new Map<Id, String>();
+        
+        For(Order__c od: orderList){
+            if(od.Status__c =='Shipped'){
+                ordersWithErrors.put(od.Id, 'Order with status Shipped cannot be deleted!!');
+            }else if(od.Order_Approvals__r.size()>0){
+                ordersWithErrors.put(od.Id, 'Order with Order Approval status set to Pending cannot be deleted: Order Approval: '+od.Order_Approvals__r[0].Name);
+            }
+        }
+        
+        for(Order__c order : orders) {
+            if(ordersWithErrors.containsKey(order.Id)) {
+                order.addError(ordersWithErrors.get(order.Id));
+            }
+        }
+    }
+}
