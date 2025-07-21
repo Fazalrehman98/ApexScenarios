@@ -1,0 +1,45 @@
+trigger AccountTrigger on Account (after update) {
+    if(trigger.isAfter){
+        if(trigger.isUpdate){
+            UpdateContactProfitShare.updateProfit(trigger.new, trigger.oldMap);
+        }
+    }
+}
+
+
+/// Handeler
+public class UpdateContactProfitShare {
+    
+    public static void updateProfit(List<Account> accList, Map<Id, Account> oldAcc){
+        
+        List<Contact> contactToUpdate = new List<Contact>();
+        set<Id> accId = new set<Id>();
+        for(Account acc: accList){
+            if(acc.Profit__c != oldAcc.get(acc.id).Profit__c){
+                accId.add(acc.id);
+            }
+        }
+        
+        for(Account acc: [SELECT Id, Profit__C, (SELECT id, Profit_Share__c,Profit_Share_Percentage__c FROM Contacts) FROM ACCOUNT WHERE ID IN: accId]){
+            if(acc.contacts.size() > 0){
+                for(contact con: acc.contacts){
+                    if(con.Profit_Share_Percentage__c != Null){
+                        con.Profit_Share__c = (acc.Profit__C * con.Profit_Share_Percentage__c)/100 ;
+                    	contactToUpdate.add(con);
+                    }
+                    
+                }
+            }
+        }
+        
+        try{
+            if(!contactToUpdate.isEmpty()){
+            update contactToUpdate;
+        	}
+        }catch(Exception e){
+            system.debug('Exception: '+e.getMessage());
+        }
+        
+    }
+
+}
